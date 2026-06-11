@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>enbody トレーニング記録</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --primary: #1a1a2e;
+    --accent: #e94560;
+    --accent2: #0f3460;
+    --bg: #f7f7f7;
+    --card: #ffffff;
+    --text: #1a1a2e;
+    --muted: #888;
+    --border: #e0e0e0;
+    --success: #2ecc71;
+    --radius: 14px;
+    --radius-sm: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, 'Hiragino Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* ヘッダー */
+  header { background: var(--primary); color: white; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+  header h1 { font-size: 18px; font-weight: 600; letter-spacing: 0.5px; }
+  .header-sub { font-size: 12px; opacity: 0.6; }
+
+  /* 設定バナー */
+  #setup-banner { background: #fff3cd; border-left: 4px solid #ffc107; padding: 14px 16px; margin: 16px; border-radius: var(--radius-sm); font-size: 13px; line-height: 1.6; }
+  #setup-banner strong { display: block; margin-bottom: 4px; color: #856404; }
+  #setup-banner input { width: 100%; padding: 8px 10px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 13px; margin-top: 8px; }
+  #setup-banner button { margin-top: 8px; background: #ffc107; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; width: 100%; }
+
+  /* ナビ */
+  nav { display: flex; background: var(--card); border-bottom: 1px solid var(--border); position: sticky; top: 57px; z-index: 99; }
+  nav button { flex: 1; padding: 13px 0; border: none; background: none; font-size: 13px; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all .2s; }
+  nav button.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+  /* セクション */
+  section { display: none; padding: 16px; }
+  section.active { display: block; }
+
+  /* カード */
+  .card { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+
+  /* お客様選択 */
+  .client-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .client-btn { background: var(--card); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 14px 10px; text-align: center; cursor: pointer; font-size: 14px; transition: all .15s; }
+  .client-btn:active { transform: scale(0.97); }
+  .client-btn.selected { border-color: var(--accent); background: #fff0f3; color: var(--accent); font-weight: 600; }
+  .client-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--accent2); color: white; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; }
+  .client-btn.selected .client-avatar { background: var(--accent); }
+
+  /* フォーム */
+  label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; margin-top: 12px; }
+  label:first-child { margin-top: 0; }
+  select, input[type=number], input[type=text] { width: 100%; padding: 11px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 15px; background: var(--bg); color: var(--text); -webkit-appearance: none; }
+  select:focus, input:focus { outline: none; border-color: var(--accent); }
+
+  /* セット入力 */
+  .set-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: end; margin-bottom: 8px; }
+  .set-row label { margin-top: 0; }
+  .set-num { font-size: 12px; color: var(--muted); padding-bottom: 11px; white-space: nowrap; }
+  .add-set-btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; padding: 11px; border: 1.5px dashed var(--border); border-radius: var(--radius-sm); background: none; color: var(--muted); font-size: 14px; cursor: pointer; margin-top: 4px; }
+  .add-set-btn:active { background: var(--bg); }
+  .del-set-btn { padding: 11px 10px; border: none; background: none; color: #ccc; font-size: 18px; cursor: pointer; }
+
+  /* ボタン */
+  .btn-primary { width: 100%; padding: 15px; background: var(--accent); color: white; border: none; border-radius: var(--radius); font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 16px; transition: opacity .2s; }
+  .btn-primary:disabled { opacity: 0.5; }
+  .btn-primary:active { opacity: 0.8; }
+  .btn-secondary { width: 100%; padding: 12px; background: var(--card); color: var(--text); border: 1.5px solid var(--border); border-radius: var(--radius); font-size: 14px; cursor: pointer; margin-top: 8px; }
+
+  /* 記録済みセッション */
+  .session-tag { display: inline-block; background: #e8f5e9; color: #2e7d32; font-size: 11px; padding: 2px 8px; border-radius: 20px; margin-right: 4px; }
+  .exercise-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .exercise-row:last-child { border-bottom: none; }
+  .exercise-name { font-weight: 500; }
+  .exercise-val { color: var(--muted); font-size: 13px; }
+
+  /* 履歴 */
+  .history-client-select { margin-bottom: 14px; }
+  .exercise-select-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+  .prev-session { background: #fff0f3; border-left: 3px solid var(--accent); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 14px; }
+  .prev-session h4 { font-size: 13px; color: var(--accent); margin-bottom: 8px; }
+  .prev-set-row { display: flex; justify-content: space-between; font-size: 14px; padding: 4px 0; }
+  .chart-wrap { position: relative; height: 220px; }
+
+  /* ステータス */
+  .status-bar { position: fixed; bottom: 0; left: 0; right: 0; padding: 12px 16px; background: var(--success); color: white; text-align: center; font-size: 14px; font-weight: 600; transform: translateY(100%); transition: transform .3s; z-index: 200; border-radius: var(--radius) var(--radius) 0 0; }
+  .status-bar.show { transform: translateY(0); }
+  .status-bar.error { background: var(--accent); }
+
+  /* 管理タブ */
+  .manage-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .manage-row:last-child { border-bottom: none; }
+  .del-btn { color: #ccc; background: none; border: none; font-size: 18px; cursor: pointer; padding: 4px 8px; }
+  .input-row { display: flex; gap: 8px; margin-top: 10px; }
+  .input-row input { flex: 1; }
+  .input-row button { padding: 11px 16px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-size: 14px; cursor: pointer; white-space: nowrap; }
+
+  /* ローディング */
+  .loading { text-align: center; color: var(--muted); font-size: 14px; padding: 24px; }
+  .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; vertical-align: middle; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="header-sub">enbody</div>
+    <h1>トレーニング記録</h1>
+  </div>
+</header>
+
+<!-- 初回設定バナー -->
+<div id="setup-banner">
+  <strong>⚙️ 初回設定：GoogleスプレッドシートのURLを入力してください</strong>
+  設定手順はこのページの下に記載しています。スプレッドシートを作成後、そのURLを貼り付けてください。
+  <input type="text" id="sheet-url-input" placeholder="https://script.google.com/macros/s/..." />
+  <button onclick="saveSheetUrl()">保存して接続する</button>
+</div>
+
+<nav>
+  <button class="active" onclick="showTab('record')">📝 記録</button>
+  <button onclick="showTab('history')">📊 履歴</button>
+  <button onclick="showTab('manage')">⚙️ 管理</button>
+</nav>
+
+<!-- 記録タブ -->
+<section id="tab-record" class="active">
+  <div class="card">
+    <label>お客様を選んでください</label>
+    <div id="client-grid" class="client-grid" style="margin-top:8px;"></div>
+  </div>
+
+  <div class="card" id="weight-form" style="display:none;">
+    <label>⚖️ 本日の体重</label>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+      <input type="number" id="weight-input" step="0.1" min="0" placeholder="68.5" style="flex:1;font-size:22px;font-weight:600;text-align:center;" />
+      <span style="font-size:16px;color:var(--muted);">kg</span>
+    </div>
+    <button class="btn-primary" onclick="saveWeight()" style="margin-top:12px;">⚖️ 体重を保存</button>
+    <div id="prev-weight" style="text-align:center;font-size:13px;color:var(--muted);margin-top:8px;"></div>
+  </div>
+
+  <div class="card" id="record-form" style="display:none;">
+    <label>種目</label>
+    <select id="exercise-select"></select>
+    <div id="sets-container"></div>
+    <button class="add-set-btn" onclick="addSet()">＋ セットを追加</button>
+    <button class="btn-primary" onclick="saveRecord()">💾 保存する</button>
+  </div>
+
+  <div id="today-summary" style="display:none;">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <strong style="font-size:15px;">本日の記録</strong>
+        <span id="today-client-name" style="font-size:13px;color:var(--muted);"></span>
+      </div>
+      <div id="today-list"></div>
+    </div>
+  </div>
+</section>
+
+<!-- 履歴タブ -->
+<section id="tab-history">
+  <div class="card">
+    <label>お客様</label>
+    <select id="hist-client" onchange="loadHistory()"></select>
+    <div class="exercise-select-row" style="margin-top:12px;">
+      <div>
+        <label>種目</label>
+        <select id="hist-exercise" onchange="loadHistory()"></select>
+      </div>
+    </div>
+  </div>
+
+  <div id="prev-session-block" style="display:none;">
+    <div class="prev-session">
+      <h4>📋 前回のセッション（<span id="prev-date"></span>）</h4>
+      <div id="prev-sets"></div>
+    </div>
+  </div>
+
+  <div class="card" style="display:none;" id="chart-card">
+    <strong style="font-size:14px;display:block;margin-bottom:12px;">最大重量の推移</strong>
+    <div class="chart-wrap">
+      <canvas id="progress-chart"></canvas>
+    </div>
+  </div>
+
+  <div id="hist-loading" class="loading" style="display:none;"><span class="spinner"></span>読み込み中...</div>
+  <div id="hist-empty" class="loading" style="display:none;">記録がまだありません</div>
+</section>
+
+<!-- 管理タブ -->
+<section id="tab-manage">
+  <div class="card">
+    <strong style="font-size:15px;display:block;margin-bottom:12px;">お客様の管理</strong>
+    <div id="client-list"></div>
+    <div class="input-row">
+      <input type="text" id="new-client-name" placeholder="新しいお客様の名前" />
+      <button onclick="addClient()">追加</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <strong style="font-size:15px;display:block;margin-bottom:12px;">種目の管理</strong>
+    <div id="exercise-list"></div>
+    <div class="input-row">
+      <input type="text" id="new-exercise-name" placeholder="新しい種目名" />
+      <button onclick="addExercise()">追加</button>
+    </div>
+  </div>
+
+  <div class="card" style="background:#f9f9f9;">
+    <strong style="font-size:13px;display:block;margin-bottom:10px;color:var(--muted);">GoogleスプレッドシートURL</strong>
+    <input type="text" id="sheet-url-display" placeholder="未設定" style="font-size:12px;" />
+    <button class="btn-secondary" onclick="saveSheetUrl()">URLを更新する</button>
+  </div>
+</section>
+
+<div id="status-bar" class="status-bar"></div>
+
+<script>
+const DEFAULT_CLIENTS = ['原田 雅人', '山田 太郎', '鈴木 花子', '田中 健一'];
+const DEFAULT_EXERCISES = [
+  'ベンチプレス', 'ダンベルフライ', 'ダンベルプレス',
+  'トライセプスエクステンション', 'プレスダウン', 'ダンベルアームカール',
+  'スパイダーカール', 'インクラインリアレイズ', 'インクラインサイドレイズ'
+];
+
+const DEMO_RECORDS = [
+  { date: '2026-06-09', client: '原田 雅人', exercise: 'ベンチプレス',           sets: [{set:1, weight:100, reps:7}],  timestamp: '2026-06-09T10:00:00Z' },
+  { date: '2026-06-09', client: '原田 雅人', exercise: 'ダンベルフライ',         sets: [{set:1, weight:22,  reps:10}], timestamp: '2026-06-09T10:05:00Z' },
+  { date: '2026-06-09', client: '原田 雅人', exercise: 'ダンベルプレス',         sets: [{set:1, weight:32,  reps:12}], timestamp: '2026-06-09T10:10:00Z' },
+  { date: '2026-06-09', client: '原田 雅人', exercise: 'トライセプスエクステンション', sets: [{set:1, weight:20, reps:12}], timestamp: '2026-06-09T10:15:00Z' },
+  { date: '2026-06-09', client: '原田 雅人', exercise: 'プレスダウン',           sets: [{set:1, weight:20,  reps:20}], timestamp: '2026-06-09T10:20:00Z' },
+  { date: '2026-06-09', client: '原田 雅人', exercise: 'ダンベルアームカール',           sets: [{set:1, weight:12,  reps:10}], timestamp: '2026-06-09T10:25:00Z' },
+  { date: '2026-06-09', client: '原田 雅人', exercise: 'スパイダーカール',       sets: [{set:1, weight:20,  reps:10}], timestamp: '2026-06-09T10:30:00Z' },
+  { date: '2026-06-09', client: '原田 雅人', exercise: 'インクラインリアレイズ', sets: [{set:1, weight:8,   reps:15}], timestamp: '2026-06-09T10:35:00Z' },
+  { date: '2026-06-09', client: '原田 雅人', exercise: 'インクラインサイドレイズ',sets: [{set:1, weight:8,  reps:10}], timestamp: '2026-06-09T10:40:00Z' },
+  { date: '2026-05-26', client: '原田 雅人', exercise: 'ベンチプレス',           sets: [{set:1, weight:95,  reps:8}],  timestamp: '2026-05-26T10:00:00Z' },
+  { date: '2026-05-26', client: '原田 雅人', exercise: 'ダンベルフライ',         sets: [{set:1, weight:20,  reps:10}], timestamp: '2026-05-26T10:05:00Z' },
+  { date: '2026-05-12', client: '原田 雅人', exercise: 'ベンチプレス',           sets: [{set:1, weight:90,  reps:8}],  timestamp: '2026-05-12T10:00:00Z' },
+  { date: '2026-04-28', client: '原田 雅人', exercise: 'ベンチプレス',           sets: [{set:1, weight:87.5,reps:8}],  timestamp: '2026-04-28T10:00:00Z' },
+];
+
+let state = {
+  clients: [],
+  exercises: [],
+  clientInfo: {},
+  selectedClient: null,
+  records: [],
+  sheetUrl: '',
+  chartInstance: null
+};
+
+function loadLocal() {
+  state.clients = (JSON.parse(localStorage.getItem('eb_clients') || 'null') || DEFAULT_CLIENTS).sort((a, b) => a.localeCompare(b, 'ja'));
+  state.exercises = JSON.parse(localStorage.getItem('eb_exercises') || 'null') || DEFAULT_EXERCISES;
+  state.sheetUrl = localStorage.getItem('eb_sheet_url') || '';
+  const saved = JSON.parse(localStorage.getItem('eb_records') || '[]');
+  const demoLoaded = localStorage.getItem('eb_demo_loaded');
+  if (!demoLoaded) {
+    state.records = [...DEMO_RECORDS, ...saved];
+    localStorage.setItem('eb_demo_loaded', '1');
+    localStorage.setItem('eb_records', JSON.stringify(state.records));
+  } else {
+    state.records = saved;
+  }
+}
+
+function saveLocal() {
+  localStorage.setItem('eb_clients', JSON.stringify(state.clients));
+  localStorage.setItem('eb_exercises', JSON.stringify(state.exercises));
+  localStorage.setItem('eb_records', JSON.stringify(state.records));
+  localStorage.setItem('eb_client_info', JSON.stringify(state.clientInfo));
+}
+
+function saveSheetUrl() {
+  const url = (document.getElementById('sheet-url-input') || document.getElementById('sheet-url-display')).value.trim();
+  if (!url) { showStatus('URLを入力してください', true); return; }
+  state.sheetUrl = url;
+  localStorage.setItem('eb_sheet_url', url);
+  document.getElementById('setup-banner').style.display = 'none';
+  if (document.getElementById('sheet-url-display')) document.getElementById('sheet-url-display').value = url;
+  showStatus('✅ Googleスプレッドシートに接続しました');
+}
+
+function showTab(tab) {
+  document.querySelectorAll('section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  event.target.classList.add('active');
+  if (tab === 'history') initHistory();
+  if (tab === 'manage') renderManage();
+}
+
+function renderClients() {
+  const grid = document.getElementById('client-grid');
+  grid.innerHTML = state.clients.map((c, i) => `
+    <div class="client-btn" onclick="selectClient(${i})" id="client-${i}">
+      <div class="client-avatar">${c.charAt(0)}</div>
+      ${c}
+    </div>
+  `).join('');
+}
+
+function selectClient(i) {
+  state.selectedClient = i;
+  document.querySelectorAll('.client-btn').forEach(b => b.classList.remove('selected'));
+  document.getElementById('client-' + i).classList.add('selected');
+  document.getElementById('weight-form').style.display = 'block';
+  document.getElementById('record-form').style.display = 'block';
+  document.getElementById('today-client-name').textContent = state.clients[i];
+  initSets();
+  renderTodaySummary();
+  renderPrevWeight();
+}
+
+function renderExerciseSelect(id) {
+  const sel = document.getElementById(id);
+  sel.innerHTML = state.exercises.map(e => `<option>${e}</option>`).join('');
+}
+
+function initSets() {
+  const container = document.getElementById('sets-container');
+  container.innerHTML = '';
+  addSet();
+}
+
+let setCount = 0;
+function addSet() {
+  setCount++;
+  const n = document.getElementById('sets-container').children.length + 1;
+  const div = document.createElement('div');
+  div.className = 'set-row';
+  div.id = 'set-' + setCount;
+  div.innerHTML = `
+    <div>
+      <label>重量 (kg)</label>
+      <input type="number" step="0.5" min="0" placeholder="60" class="weight-input" />
+    </div>
+    <div>
+      <label>回数</label>
+      <input type="number" min="1" placeholder="10" class="reps-input" />
+    </div>
+    <button class="del-set-btn" onclick="this.parentElement.remove()">×</button>
+  `;
+  document.getElementById('sets-container').appendChild(div);
+}
+
+function saveWeight() {
+  if (state.selectedClient === null) { showStatus('お客様を選択してください', true); return; }
+  const w = document.getElementById('weight-input').value;
+  if (!w) { showStatus('体重を入力してください', true); return; }
+  const record = {
+    date: new Date().toISOString().slice(0, 10),
+    client: state.clients[state.selectedClient],
+    exercise: '__体重__',
+    sets: [{set: 1, weight: parseFloat(w), reps: 0}],
+    timestamp: new Date().toISOString()
+  };
+  // 同日の体重記録を上書き
+  state.records = state.records.filter(r => !(r.client === record.client && r.date === record.date && r.exercise === '__体重__'));
+  state.records.push(record);
+  saveLocal();
+  syncToSheet(record);
+  showStatus('✅ 体重を保存しました！');
+  renderPrevWeight();
+}
+
+function renderPrevWeight() {
+  if (state.selectedClient === null) return;
+  const clientName = state.clients[state.selectedClient];
+  const today = new Date().toISOString().slice(0, 10);
+  const recs = state.records
+    .filter(r => r.client === clientName && r.exercise === '__体重__')
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const el = document.getElementById('prev-weight');
+  if (!el) return;
+  if (recs.length === 0) { el.textContent = '体重の記録はまだありません'; return; }
+  const last = recs[recs.length - 1];
+  if (last.date === today) {
+    el.textContent = '本日登録済み：' + last.sets[0].weight + ' kg';
+  } else {
+    el.textContent = '前回（' + last.date + '）：' + last.sets[0].weight + ' kg';
+  }
+}
+
+async function saveRecord() {
+  if (state.selectedClient === null) { showStatus('お客様を選択してください', true); return; }
+  const exercise = document.getElementById('exercise-select').value;
+  const rows = document.querySelectorAll('#sets-container .set-row');
+  const sets = [];
+  rows.forEach((row, i) => {
+    const w = row.querySelector('.weight-input').value;
+    const r = row.querySelector('.reps-input').value;
+    if (w && r) sets.push({ set: i + 1, weight: parseFloat(w), reps: parseInt(r) });
+  });
+  if (sets.length === 0) { showStatus('重量と回数を入力してください', true); return; }
+
+  const record = {
+    date: new Date().toISOString().slice(0, 10),
+    client: state.clients[state.selectedClient],
+    exercise,
+    sets,
+    timestamp: new Date().toISOString()
+  };
+
+  state.records.push(record);
+  saveLocal();
+  await syncToSheet(record);
+  showStatus('✅ 保存しました！');
+  initSets();
+  renderTodaySummary();
+}
+
+async function syncToSheet(record) {
+  if (!state.sheetUrl) return;
+  try {
+    await fetch(state.sheetUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      body: JSON.stringify(record),
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (e) {}
+}
+
+function renderTodaySummary() {
+  if (state.selectedClient === null) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const clientName = state.clients[state.selectedClient];
+  const todayRecs = state.records.filter(r => r.date === today && r.client === clientName);
+  const block = document.getElementById('today-summary');
+  const list = document.getElementById('today-list');
+  if (todayRecs.length === 0) { block.style.display = 'none'; return; }
+  block.style.display = 'block';
+  list.innerHTML = todayRecs.map(r => `
+    <div class="exercise-row">
+      <span class="exercise-name">${r.exercise}</span>
+      <span class="exercise-val">${r.sets.map(s => `${s.weight}kg×${s.reps}回`).join(' / ')}</span>
+    </div>
+  `).join('');
+}
+
+function initHistory() {
+  const hc = document.getElementById('hist-client');
+  hc.innerHTML = state.clients.map(c => `<option>${c}</option>`).join('');
+  const he = document.getElementById('hist-exercise');
+  he.innerHTML = state.exercises.map(e => `<option>${e}</option>`).join('');
+  loadHistory();
+}
+
+function loadHistory() {
+  const client = document.getElementById('hist-client').value;
+  const exercise = document.getElementById('hist-exercise').value;
+  const recs = state.records.filter(r => r.client === client && r.exercise === exercise);
+
+  document.getElementById('prev-session-block').style.display = 'none';
+  document.getElementById('chart-card').style.display = 'none';
+  document.getElementById('hist-empty').style.display = recs.length === 0 ? 'block' : 'none';
+  if (recs.length === 0) return;
+
+  const byDate = {};
+  recs.forEach(r => {
+    if (!byDate[r.date]) byDate[r.date] = [];
+    byDate[r.date].push(...r.sets);
+  });
+  const dates = Object.keys(byDate).sort();
+
+  if (dates.length > 0) {
+    const lastDate = dates[dates.length - 1];
+    const lastSets = byDate[lastDate];
+    document.getElementById('prev-date').textContent = lastDate;
+    document.getElementById('prev-sets').innerHTML = lastSets.map((s, i) =>
+      `<div class="prev-set-row"><span>セット${i + 1}</span><strong>${s.weight}kg × ${s.reps}回</strong></div>`
+    ).join('');
+    document.getElementById('prev-session-block').style.display = 'block';
+  }
+
+  if (dates.length > 1) {
+    document.getElementById('chart-card').style.display = 'block';
+    const maxWeights = dates.map(d => Math.max(...byDate[d].map(s => s.weight)));
+    if (state.chartInstance) state.chartInstance.destroy();
+    const ctx = document.getElementById('progress-chart').getContext('2d');
+    state.chartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: dates.map(d => d.slice(5)),
+        datasets: [{
+          label: '最大重量 (kg)',
+          data: maxWeights,
+          borderColor: '#e94560',
+          backgroundColor: 'rgba(233,69,96,0.08)',
+          borderWidth: 2.5,
+          pointBackgroundColor: '#e94560',
+          pointRadius: 5,
+          tension: 0.3,
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { grid: { color: '#f0f0f0' }, ticks: { font: { size: 11 } } },
+          x: { grid: { display: false }, ticks: { font: { size: 11 } } }
+        }
+      }
+    });
+  }
+}
+
+function renderManage() {
+  const cl = document.getElementById('client-list');
+  cl.innerHTML = state.clients.map((c, i) => {
+    const info = state.clientInfo[c] || {};
+    return `
+    <div class="client-info-card" id="card-${i}">
+      <div class="manage-row" style="cursor:pointer;" onclick="toggleClientCard(${i})">
+        <span style="font-weight:500;">${c}</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:11px;color:var(--muted);">${info.history || info.memo ? '📋 登録済み' : ''}</span>
+          <span style="font-size:14px;color:var(--muted);">▼</span>
+          <button class="del-btn" onclick="event.stopPropagation();deleteClient(${i})">×</button>
+        </div>
+      </div>
+      <div id="client-detail-${i}" style="display:none;padding:8px 0 4px;">
+        <label style="font-size:12px;color:var(--muted);">既往歴</label>
+        <textarea id="history-${i}" rows="2" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:6px;font-size:14px;resize:vertical;margin-top:4px;">${info.history || ''}</textarea>
+        <label style="font-size:12px;color:var(--muted);margin-top:8px;display:block;">メモ</label>
+        <textarea id="memo-${i}" rows="2" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:6px;font-size:14px;resize:vertical;margin-top:4px;">${info.memo || ''}</textarea>
+        <button onclick="saveClientInfo(${i})" style="margin-top:8px;padding:8px 16px;background:var(--primary);color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer;width:100%;">保存する</button>
+      </div>
+    </div>
+  `;
+  }).join('');
+  const el = document.getElementById('exercise-list');
+  el.innerHTML = state.exercises.map((e, i) => `
+    <div class="manage-row">
+      <span>${e}</span>
+      <button class="del-btn" onclick="deleteExercise(${i})">×</button>
+    </div>
+  `).join('');
+  const sd = document.getElementById('sheet-url-display');
+  if (sd) sd.value = state.sheetUrl;
+}
+
+function toggleClientCard(i) {
+  const detail = document.getElementById('client-detail-' + i);
+  if (detail) detail.style.display = detail.style.display === 'none' ? 'block' : 'none';
+}
+
+function saveClientInfo(i) {
+  const c = state.clients[i];
+  const history = document.getElementById('history-' + i).value.trim();
+  const memo = document.getElementById('memo-' + i).value.trim();
+  state.clientInfo[c] = { history, memo };
+  saveLocal();
+  showStatus('✅ ' + c + ' の情報を保存しました');
+  renderManage();
+}
+
+function addClient() {
+  const n = document.getElementById('new-client-name').value.trim();
+  if (!n) return;
+  state.clients.push(n);
+  state.clients.sort((a, b) => a.localeCompare(b, 'ja'));
+  saveLocal();
+  document.getElementById('new-client-name').value = '';
+  renderClients();
+  renderManage();
+  showStatus('✅ ' + n + ' を追加しました');
+}
+
+function deleteClient(i) {
+  if (!confirm(state.clients[i] + ' を削除しますか？')) return;
+  const name = state.clients[i];
+  delete state.clientInfo[name];
+  state.clients.splice(i, 1);
+  saveLocal();
+  renderClients();
+  renderManage();
+}
+
+function addExercise() {
+  const n = document.getElementById('new-exercise-name').value.trim();
+  if (!n) return;
+  state.exercises.push(n);
+  saveLocal();
+  document.getElementById('new-exercise-name').value = '';
+  renderExerciseSelect('exercise-select');
+  renderManage();
+  showStatus('✅ ' + n + ' を追加しました');
+}
+
+function deleteExercise(i) {
+  if (!confirm(state.exercises[i] + ' を削除しますか？')) return;
+  state.exercises.splice(i, 1);
+  saveLocal();
+  renderExerciseSelect('exercise-select');
+  renderManage();
+}
+
+let statusTimer;
+function showStatus(msg, isError) {
+  const bar = document.getElementById('status-bar');
+  bar.textContent = msg;
+  bar.className = 'status-bar show' + (isError ? ' error' : '');
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => bar.classList.remove('show'), 2500);
+}
+
+function init() {
+  loadLocal();
+  if (state.sheetUrl) document.getElementById('setup-banner').style.display = 'none';
+  renderClients();
+  renderExerciseSelect('exercise-select');
+  initSets();
+}
+
+init();
+</script>
+
+</body>
+</html>
