@@ -128,6 +128,7 @@
   <button class="active" onclick="showTab('record')">📝 記録</button>
   <button onclick="showTab('history')">📊 履歴</button>
   <button onclick="showTab('manage')">⚙️ 管理</button>
+  <button onclick="loadFromSheet()" style="font-size:18px;padding:13px 12px;">🔄</button>
 </nav>
 
 <!-- 記録タブ -->
@@ -433,6 +434,32 @@ async function syncToSheet(record) {
   } catch (e) {}
 }
 
+async function loadFromSheet() {
+  if (!state.sheetUrl) return;
+  try {
+    showSyncStatus('📡 データを読み込み中...');
+    const res = await fetch(state.sheetUrl + '?action=getAll');
+    const data = await res.json();
+    if (data && data.records) {
+      state.records = data.records;
+      localStorage.setItem('eb_records', JSON.stringify(state.records));
+      renderClients();
+      renderTodaySummary();
+      showSyncStatus('✅ 最新データを読み込みました');
+    }
+  } catch (e) {
+    showSyncStatus('⚠️ オフラインのためローカルデータを表示中', true);
+  }
+}
+
+function showSyncStatus(msg, isWarn) {
+  const bar = document.getElementById('status-bar');
+  bar.textContent = msg;
+  bar.className = 'status-bar show' + (isWarn ? ' error' : '');
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => bar.classList.remove('show'), 3000);
+}
+
 function renderTodaySummary() {
   if (state.selectedClient === null) return;
   const today = new Date().toISOString().slice(0, 10);
@@ -621,7 +648,10 @@ function showStatus(msg, isError) {
 
 function init() {
   loadLocal();
-  if (state.sheetUrl) document.getElementById('setup-banner').style.display = 'none';
+  if (state.sheetUrl) {
+    document.getElementById('setup-banner').style.display = 'none';
+    loadFromSheet();
+  }
   renderClients();
   renderExerciseSelect('exercise-select');
   initSets();
