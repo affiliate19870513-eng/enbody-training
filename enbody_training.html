@@ -460,6 +460,14 @@ function loadFromSheet() {
       if (data && data.records) {
         state.records = data.records;
         localStorage.setItem('eb_records', JSON.stringify(state.records));
+        // スプレッドシートのデータからお客様名を抽出して追加
+        data.records.forEach(function(r) {
+          if (r.client && !state.clients.includes(r.client)) {
+            state.clients.push(r.client);
+          }
+        });
+        state.clients.sort((a, b) => a.localeCompare(b, 'ja'));
+        localStorage.setItem('eb_clients', JSON.stringify(state.clients));
         renderClients();
         renderTodaySummary();
         showSyncStatus('✅ 最新データを読み込みました');
