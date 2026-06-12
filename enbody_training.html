@@ -437,31 +437,22 @@ async function syncToSheet(record) {
 async function loadFromSheet() {
   if (!state.sheetUrl) return;
   showSyncStatus('📡 データを読み込み中...');
-  return new Promise((resolve) => {
-    const callbackName = 'cb_' + Date.now();
-    const script = document.createElement('script');
-    const url = state.sheetUrl + '?action=getAll&callback=' + callbackName;
-    window[callbackName] = function(data) {
-      delete window[callbackName];
-      document.body.removeChild(script);
-      if (data && data.records) {
-        state.records = data.records;
-        localStorage.setItem('eb_records', JSON.stringify(state.records));
-        renderClients();
-        renderTodaySummary();
-        showSyncStatus('✅ 最新データを読み込みました');
-      }
-      resolve();
-    };
-    script.onerror = function() {
-      delete window[callbackName];
-      document.body.removeChild(script);
-      showSyncStatus('⚠️ オフラインのためローカルデータを表示中', true);
-      resolve();
-    };
-    script.src = url;
-    document.body.appendChild(script);
-  });
+  try {
+    const res = await fetch(state.sheetUrl + '?action=getAll', {
+      method: 'GET',
+      mode: 'cors'
+    });
+    const data = await res.json();
+    if (data && data.records) {
+      state.records = data.records;
+      localStorage.setItem('eb_records', JSON.stringify(state.records));
+      renderClients();
+      renderTodaySummary();
+      showSyncStatus('✅ 最新データを読み込みました');
+    }
+  } catch (e) {
+    showSyncStatus('⚠️ 読み込み失敗: ' + e.message, true);
+  }
 }
 
 function showSyncStatus(msg, isWarn) {
