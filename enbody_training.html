@@ -172,29 +172,34 @@
   <div class="card">
     <label>お客様</label>
     <select id="hist-client" onchange="loadHistory()"></select>
-    <div class="exercise-select-row" style="margin-top:12px;">
-      <div>
-        <label>種目</label>
-        <select id="hist-exercise" onchange="loadHistory()"></select>
+  </div>
+
+  <div id="hist-summary" style="display:none;">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <strong style="font-size:15px;">📋 前回の記録</strong>
+        <span id="hist-last-date" style="font-size:12px;color:var(--muted);"></span>
+      </div>
+      <div id="hist-summary-list"></div>
+    </div>
+  </div>
+
+  <div id="hist-detail" style="display:none;">
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <button onclick="closeDetail()" style="background:none;border:none;font-size:18px;cursor:pointer;">←</button>
+        <strong style="font-size:15px;" id="hist-detail-title"></strong>
+      </div>
+      <div id="hist-detail-sets"></div>
+    </div>
+    <div class="card" id="chart-card">
+      <strong style="font-size:14px;display:block;margin-bottom:12px;">最大重量の推移</strong>
+      <div class="chart-wrap">
+        <canvas id="progress-chart"></canvas>
       </div>
     </div>
   </div>
 
-  <div id="prev-session-block" style="display:none;">
-    <div class="prev-session">
-      <h4>📋 前回のセッション（<span id="prev-date"></span>）</h4>
-      <div id="prev-sets"></div>
-    </div>
-  </div>
-
-  <div class="card" style="display:none;" id="chart-card">
-    <strong style="font-size:14px;display:block;margin-bottom:12px;">最大重量の推移</strong>
-    <div class="chart-wrap">
-      <canvas id="progress-chart"></canvas>
-    </div>
-  </div>
-
-  <div id="hist-loading" class="loading" style="display:none;"><span class="spinner"></span>読み込み中...</div>
   <div id="hist-empty" class="loading" style="display:none;">記録がまだありません</div>
 </section>
 
@@ -514,37 +519,88 @@ function renderTodaySummary() {
 function initHistory() {
   const hc = document.getElementById('hist-client');
   hc.innerHTML = state.clients.map(c => `<option>${c}</option>`).join('');
-  const he = document.getElementById('hist-exercise');
-  he.innerHTML = state.exercises.map(e => `<option>${e}</option>`).join('');
   loadHistory();
 }
 
 function loadHistory() {
   const client = document.getElementById('hist-client').value;
-  const exercise = document.getElementById('hist-exercise').value;
-  const recs = state.records.filter(r => r.client === client && r.exercise === exercise);
+  const recs = state.records.filter(r => r.client === client && r.exercise !== '__体重__');
 
-  document.getElementById('prev-session-block').style.display = 'none';
-  document.getElementById('chart-card').style.display = 'none';
-  document.getElementById('hist-empty').style.display = recs.length === 0 ? 'block' : 'none';
+  document.getElementById('hist-summary').style.display = 'none';
+  document.getElementById('hist-detail').style.display = 'none';
+  document.getElementById('hist-empty').style.display = 'none';
+
+  if (recs.length === 0) {
+    document.getElementById('hist-empty').style.display = 'block';
+    return;
+  }
+
+  // 種目ごとに最新の記録を取得
+  const byExercise = {};
+  recs.forEach(r => {
+    if (!byExercise[r.exercise]) byExercise[r.exercise] = [];
+    byExercise[r.exercise].push(r);
+  });
+
+  // 全種目の中で最新日付を取得
+  let lastDate = '';
+  Object.values(byExercise).forEach(list => {
+    list.forEach(r => { if (r.date > lastDate) lastDate = r.date; });
+  });
+
+  // 種目ごとの最新記録をまとめる
+  const summaryItems = state.exercises.map(ex => {
+    const exRecs = byExercise[ex];
+    if (!exRecs || exRecs.length === 0) return null;
+    const sorted = exRecs.sort((a, b) => b.date.localeCompare(a.date));
+    const latest = sorted[0];
+    const maxWeight = Math.max(...latest.sets.map(s => s.weight));
+    const totalSets = latest.sets.length;
+    return { exercise: ex, date: latest.date, sets: latest.sets, maxWeight, totalSets };
+  }).filter(Boolean);
+
+  document.getElementById('hist-last-date').textContent = '最終更新: ' + lastDate;
+  document.getElementById('hist-summary-list').innerHTML = summaryItems.map(item => `
+    <div class="exercise-row" onclick="showDetail('${item.exercise}')" style="cursor:pointer;">
+      <div>
+        <div class="exercise-name">${item.exercise}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">${item.date} ／ ${item.totalSets}セット</div>
+      </div>
+      <div style="text-align:right;">
+        <strong style="font-size:16px;">${item.maxWeight}kg</strong>
+        <div style="font-size:11px;color:var(--muted);">× ${item.sets[item.sets.length-1].reps}回</div>
+      </div>
+    </div>
+  `).join('');
+
+  document.getElementById('hist-summary').style.display = 'block';
+}
+
+function showDetail(exercise) {
+  const client = document.getElementById('hist-client').value;
+  const recs = state.records.filter(r => r.client === client && r.exercise === exercise);
   if (recs.length === 0) return;
 
+  document.getElementById('hist-summary').style.display = 'none';
+  document.getElementById('hist-detail').style.display = 'block';
+  document.getElementById('hist-detail-title').textContent = exercise;
+
+  const sorted = recs.sort((a, b) => b.date.localeCompare(a.date));
+  const latest = sorted[0];
+  document.getElementById('hist-detail-sets').innerHTML = `
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">${latest.date}</div>
+    ${latest.sets.map((s, i) => `
+      <div class="prev-set-row"><span>セット${i+1}</span><strong>${s.weight}kg × ${s.reps}回</strong></div>
+    `).join('')}
+  `;
+
+  // グラフ描画
   const byDate = {};
   recs.forEach(r => {
     if (!byDate[r.date]) byDate[r.date] = [];
     byDate[r.date].push(...r.sets);
   });
   const dates = Object.keys(byDate).sort();
-
-  if (dates.length > 0) {
-    const lastDate = dates[dates.length - 1];
-    const lastSets = byDate[lastDate];
-    document.getElementById('prev-date').textContent = lastDate;
-    document.getElementById('prev-sets').innerHTML = lastSets.map((s, i) =>
-      `<div class="prev-set-row"><span>セット${i + 1}</span><strong>${s.weight}kg × ${s.reps}回</strong></div>`
-    ).join('');
-    document.getElementById('prev-session-block').style.display = 'block';
-  }
 
   if (dates.length > 1) {
     document.getElementById('chart-card').style.display = 'block';
@@ -577,7 +633,15 @@ function loadHistory() {
         }
       }
     });
+  } else {
+    document.getElementById('chart-card').style.display = 'none';
   }
+}
+
+function closeDetail() {
+  document.getElementById('hist-detail').style.display = 'none';
+  document.getElementById('hist-summary').style.display = 'block';
+  if (state.chartInstance) { state.chartInstance.destroy(); state.chartInstance = null; }
 }
 
 function renderManage() {
