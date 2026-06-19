@@ -419,6 +419,8 @@ async function saveRecord() {
     timestamp: new Date().toISOString()
   };
 
+  // 同日・同種目の記録は上書き
+  state.records = state.records.filter(r => !(r.client === record.client && r.date === record.date && r.exercise === record.exercise));
   state.records.push(record);
   saveLocal();
   await syncToSheet(record);
@@ -463,6 +465,13 @@ function loadFromSheet() {
       done = true;
       cleanup();
       if (data && data.records) {
+        // スプレッドシートから来たdateをYYYY-MM-DD形式に正規化
+        data.records.forEach(r => {
+          if (r.date && !r.date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            const d = new Date(r.date);
+            r.date = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+          }
+        });
         state.records = data.records;
         localStorage.setItem('eb_records', JSON.stringify(state.records));
         // スプレッドシートのデータからお客様名を抽出して追加
