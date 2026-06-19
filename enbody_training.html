@@ -472,7 +472,14 @@ function loadFromSheet() {
             r.date = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
           }
         });
-        state.records = data.records;
+        // ローカルデータとスプレッドシートデータをマージ（timestampで重複排除）
+        const existing = JSON.parse(localStorage.getItem('eb_records') || '[]');
+        const merged = [...existing];
+        data.records.forEach(sr => {
+          const dup = merged.find(lr => lr.timestamp === sr.timestamp);
+          if (!dup) merged.push(sr);
+        });
+        state.records = merged;
         localStorage.setItem('eb_records', JSON.stringify(state.records));
         // スプレッドシートのデータからお客様名を抽出して追加
         data.records.forEach(function(r) {
@@ -527,12 +534,21 @@ function renderTodaySummary() {
 
 function initHistory() {
   const hc = document.getElementById('hist-client');
-  hc.innerHTML = state.clients.map(c => `<option>${c}</option>`).join('');
-  loadHistory();
+  hc.innerHTML = '<option value="">-- お客様を選んでください --</option>' + 
+    state.clients.map(c => `<option>${c}</option>`).join('');
+  document.getElementById('hist-summary').style.display = 'none';
+  document.getElementById('hist-detail').style.display = 'none';
+  document.getElementById('hist-empty').style.display = 'none';
 }
 
 function loadHistory() {
   const client = document.getElementById('hist-client').value;
+  if (!client) {
+    document.getElementById('hist-summary').style.display = 'none';
+    document.getElementById('hist-detail').style.display = 'none';
+    document.getElementById('hist-empty').style.display = 'none';
+    return;
+  }
   const recs = state.records.filter(r => r.client === client && r.exercise !== '__体重__');
 
   document.getElementById('hist-summary').style.display = 'none';
