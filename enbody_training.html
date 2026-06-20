@@ -621,23 +621,13 @@ function showDetail(exercise) {
   document.getElementById('hist-detail').style.display = 'block';
   document.getElementById('hist-detail-title').textContent = exercise;
 
-  // 日付ごとにグループ化（MAX重量と対応する回数を取得）
+  // 日付ごとにグループ化
   const byDate = {};
   recs.forEach(r => {
     if (!byDate[r.date]) byDate[r.date] = [];
     r.sets.forEach(s => byDate[r.date].push(s));
   });
   const allDates = Object.keys(byDate).sort();
-
-  // 最新日のセット詳細を表示
-  const latestDate = allDates[allDates.length - 1];
-  const latestSets = byDate[latestDate];
-  document.getElementById('hist-detail-sets').innerHTML = `
-    <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">前回：${latestDate}</div>
-    ${latestSets.map((s, i) => `
-      <div class="prev-set-row"><span>セット${i+1}</span><strong>${s.weight}kg × ${s.reps}回</strong></div>
-    `).join('')}
-  `;
 
   // 各日付のMAX重量とその時の回数を取得
   const chartData = allDates.map(d => {
@@ -646,31 +636,14 @@ function showDetail(exercise) {
     return { date: d, weight: maxSet.weight, reps: maxSet.reps };
   });
 
-  // グラフ：直近10件のみ
+  // 直近10件でグラフ描画
   const recent10 = chartData.slice(-10);
-
   if (recent10.length >= 1) {
     document.getElementById('chart-card').style.display = 'block';
     if (state.chartInstance) state.chartInstance.destroy();
-    const repsPlugin = {
-      id: 'repsLabel',
-      afterDatasetsDraw(chart) {
-        const ctx2 = chart.ctx;
-        ctx2.save();
-        ctx2.font = 'bold 11px -apple-system, sans-serif';
-        ctx2.fillStyle = '#e94560';
-        ctx2.textAlign = 'center';
-        const meta = chart.getDatasetMeta(0);
-        meta.data.forEach((pt, i) => {
-          ctx2.fillText(recent10[i].reps + '回', pt.x, pt.y - 12);
-        });
-        ctx2.restore();
-      }
-    };
     const ctx = document.getElementById('progress-chart').getContext('2d');
     state.chartInstance = new Chart(ctx, {
       type: 'line',
-      plugins: [repsPlugin],
       data: {
         labels: recent10.map(d => d.date.slice(5)),
         datasets: [{
@@ -688,11 +661,7 @@ function showDetail(exercise) {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        layout: { padding: { top: 24 } },
-        plugins: {
-          legend: { display: false },
-          tooltip: { enabled: true }
-        },
+        plugins: { legend: { display: false } },
         scales: {
           y: { grid: { color: '#f0f0f0' }, ticks: { font: { size: 11 } } },
           x: { grid: { display: false }, ticks: { font: { size: 11 } } }
@@ -703,18 +672,17 @@ function showDetail(exercise) {
     document.getElementById('chart-card').style.display = 'none';
   }
 
-  // 全履歴リスト（新しい順・スクロール対応）
-  if (chartData.length > 0) {
-    document.getElementById('hist-all-list').style.display = 'block';
-    document.getElementById('hist-all-list-body').innerHTML = [...chartData].reverse().map(d => `
-      <div class="exercise-row">
-        <span style="color:var(--muted);font-size:13px;">${d.date}</span>
-        <strong>${d.weight}kg × ${d.reps}回</strong>
-      </div>
-    `).join('');
-  } else {
-    document.getElementById('hist-all-list').style.display = 'none';
-  }
+  // 全履歴リスト（新しい順・日付・MAX重量・回数）
+  document.getElementById('hist-all-list').style.display = 'block';
+  document.getElementById('hist-all-list-body').innerHTML = [...chartData].reverse().map(d => `
+    <div class="exercise-row">
+      <span style="color:var(--muted);font-size:13px;">${d.date}</span>
+      <strong>${d.weight}kg × ${d.reps}回</strong>
+    </div>
+  `).join('');
+
+  // 前回セッション詳細は非表示
+  document.getElementById('hist-detail-sets').innerHTML = '';
 }
 
 function closeDetail() {
@@ -825,6 +793,10 @@ function showStatus(msg, isError) {
 }
 
 function resetAndReload() {
+  if (!state.sheetUrl) {
+    showStatus('⚠️ 先にGoogleスプレッドシートのURLを設定してください', true);
+    return;
+  }
   if (!confirm('ローカルの記録データをリセットしてスプレッドシートから再読み込みします。よろしいですか？')) return;
   localStorage.removeItem('eb_records');
   localStorage.removeItem('eb_demo_loaded');
