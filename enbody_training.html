@@ -228,6 +228,13 @@
     <input type="text" id="sheet-url-display" placeholder="未設定" style="font-size:12px;" />
     <button class="btn-secondary" onclick="saveSheetUrl()">URLを更新する</button>
   </div>
+
+  <div class="card" style="background:#fff0f3;">
+    <strong style="font-size:13px;display:block;margin-bottom:6px;color:var(--accent);">⚠️ データのリセット</strong>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">スプレッドシートのデータを再読み込みします。古いデモデータが消えます。</p>
+    <button class="btn-secondary" style="border-color:var(--accent);color:var(--accent);" onclick="resetAndReload()">データをリセットして再読み込み</button>
+  </div>
+
 </section>
 
 <div id="status-bar" class="status-bar"></div>
@@ -767,6 +774,15 @@ function showStatus(msg, isError) {
   bar.className = 'status-bar show' + (isError ? ' error' : '');
   clearTimeout(statusTimer);
   statusTimer = setTimeout(() => bar.classList.remove('show'), 2500);
+}
+
+function resetAndReload() {
+  if (!confirm('ローカルの記録データをリセットしてスプレッドシートから再読み込みします。よろしいですか？')) return;
+  localStorage.removeItem('eb_records');
+  localStorage.removeItem('eb_demo_loaded');
+  state.records = [];
+  showStatus('🔄 リセットしました。再読み込み中...');
+  setTimeout(() => loadFromSheet(), 500);
 }
 
 function init() {
