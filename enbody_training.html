@@ -584,30 +584,60 @@ function loadHistory() {
     list.forEach(r => { if (r.date > lastDate) lastDate = r.date; });
   });
 
+  // 体重の最新記録を取得
+  const weightRecs = state.records.filter(r => r.client === client && r.exercise === '__体重__');
+  let weightItem = null;
+  if (weightRecs.length > 0) {
+    const latestWeight = weightRecs.sort((a, b) => b.date.localeCompare(a.date))[0];
+    weightItem = {
+      exercise: '⚖️ 体重',
+      date: latestWeight.date,
+      sets: latestWeight.sets,
+      maxWeight: latestWeight.sets[0].weight,
+      totalSets: 0,
+      isWeight: true
+    };
+  }
+
   // 種目ごとの最新記録をまとめる
-  const summaryItems = state.exercises.map(ex => {
+  const exerciseItems = state.exercises.map(ex => {
     const exRecs = byExercise[ex];
     if (!exRecs || exRecs.length === 0) return null;
     const sorted = exRecs.sort((a, b) => b.date.localeCompare(a.date));
     const latest = sorted[0];
     const maxWeight = Math.max(...latest.sets.map(s => s.weight));
     const totalSets = latest.sets.length;
-    return { exercise: ex, date: latest.date, sets: latest.sets, maxWeight, totalSets };
+    return { exercise: ex, date: latest.date, sets: latest.sets, maxWeight, totalSets, isWeight: false };
   }).filter(Boolean);
 
+  const summaryItems = weightItem ? [weightItem, ...exerciseItems] : exerciseItems;
+
   document.getElementById('hist-last-date').textContent = '最終更新: ' + lastDate;
-  document.getElementById('hist-summary-list').innerHTML = summaryItems.map(item => `
-    <div class="exercise-row" onclick="showDetail('${item.exercise}')" style="cursor:pointer;">
-      <div>
-        <div class="exercise-name">${item.exercise}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px;">${item.date} ／ ${item.totalSets}セット</div>
-      </div>
-      <div style="text-align:right;">
-        <strong style="font-size:16px;">${item.maxWeight}kg</strong>
-        <div style="font-size:11px;color:var(--muted);">× ${item.sets[item.sets.length-1].reps}回</div>
-      </div>
-    </div>
-  `).join('');
+  document.getElementById('hist-summary-list').innerHTML = summaryItems.map(item => {
+    if (item.isWeight) {
+      return `
+        <div class="exercise-row" onclick="showWeightDetail()" style="cursor:pointer;background:#f0f7ff;border-radius:8px;padding:10px 0;margin-bottom:4px;">
+          <div>
+            <div class="exercise-name">${item.exercise}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;">${item.date}</div>
+          </div>
+          <div style="text-align:right;">
+            <strong style="font-size:16px;">${item.maxWeight}kg</strong>
+          </div>
+        </div>`;
+    }
+    return `
+      <div class="exercise-row" onclick="showDetail('${item.exercise}')" style="cursor:pointer;">
+        <div>
+          <div class="exercise-name">${item.exercise}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">${item.date} ／ ${item.totalSets}セット</div>
+        </div>
+        <div style="text-align:right;">
+          <strong style="font-size:16px;">${item.maxWeight}kg</strong>
+          <div style="font-size:11px;color:var(--muted);">× ${item.sets[item.sets.length-1].reps}回</div>
+        </div>
+      </div>`;
+  }).join('');
 
   document.getElementById('hist-summary').style.display = 'block';
 }
@@ -683,6 +713,67 @@ function showDetail(exercise) {
 
   // 前回セッション詳細は非表示
   document.getElementById('hist-detail-sets').innerHTML = '';
+}
+
+function showWeightDetail() {
+  const client = document.getElementById('hist-client').value;
+  const recs = state.records.filter(r => r.client === client && r.exercise === '__体重__');
+  if (recs.length === 0) return;
+
+  document.getElementById('hist-summary').style.display = 'none';
+  document.getElementById('hist-detail').style.display = 'block';
+  document.getElementById('hist-detail-title').textContent = '⚖️ 体重の推移';
+  document.getElementById('hist-detail-sets').innerHTML = '';
+
+  // 日付ごとに体重をまとめる
+  const chartData = recs
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map(r => ({ date: r.date, weight: r.sets[0].weight }));
+
+  // 直近10件でグラフ描画
+  const recent10 = chartData.slice(-10);
+  if (recent10.length >= 1) {
+    document.getElementById('chart-card').style.display = 'block';
+    if (state.chartInstance) state.chartInstance.destroy();
+    const ctx = document.getElementById('progress-chart').getContext('2d');
+    state.chartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: recent10.map(d => d.date.slice(5)),
+        datasets: [{
+          label: '体重 (kg)',
+          data: recent10.map(d => d.weight),
+          borderColor: '#0f3460',
+          backgroundColor: 'rgba(15,52,96,0.08)',
+          borderWidth: 2.5,
+          pointBackgroundColor: '#0f3460',
+          pointRadius: 6,
+          tension: 0.3,
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { grid: { color: '#f0f0f0' }, ticks: { font: { size: 11 } } },
+          x: { grid: { display: false }, ticks: { font: { size: 11 } } }
+        }
+      }
+    });
+  } else {
+    document.getElementById('chart-card').style.display = 'none';
+  }
+
+  // 全履歴リスト（新しい順）
+  document.getElementById('hist-all-list').style.display = 'block';
+  document.getElementById('hist-all-list-body').innerHTML = [...chartData].reverse().map(d => `
+    <div class="exercise-row">
+      <span style="color:var(--muted);font-size:13px;">${d.date}</span>
+      <strong>${d.weight}kg</strong>
+    </div>
+  `).join('');
 }
 
 function closeDetail() {
