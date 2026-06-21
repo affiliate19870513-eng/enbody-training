@@ -566,7 +566,10 @@ function loadHistory() {
   document.getElementById('hist-detail').style.display = 'none';
   document.getElementById('hist-empty').style.display = 'none';
 
-  if (recs.length === 0) {
+  // 体重記録を先に取得
+  const weightRecsCheck = state.records.filter(r => r.client === client && r.exercise === '__体重__');
+  
+  if (recs.length === 0 && weightRecsCheck.length === 0) {
     document.getElementById('hist-empty').style.display = 'block';
     return;
   }
