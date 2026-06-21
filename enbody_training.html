@@ -588,10 +588,18 @@ function loadHistory() {
   const weightRecs = state.records.filter(r => r.client === client && r.exercise === '__体重__');
   let weightItem = null;
   if (weightRecs.length > 0) {
-    const latestWeight = weightRecs.sort((a, b) => b.date.localeCompare(a.date))[0];
+    // 同日複数件ある場合はtimestampが新しい方を使う
+    const byDateW = {};
+    weightRecs.forEach(r => {
+      if (!byDateW[r.date] || r.timestamp > byDateW[r.date].timestamp) {
+        byDateW[r.date] = r;
+      }
+    });
+    const latestDate = Object.keys(byDateW).sort().reverse()[0];
+    const latestWeight = byDateW[latestDate];
     weightItem = {
       exercise: '⚖️ 体重',
-      date: latestWeight.date,
+      date: latestDate,
       sets: latestWeight.sets,
       maxWeight: latestWeight.sets[0].weight,
       totalSets: 0,
@@ -725,10 +733,15 @@ function showWeightDetail() {
   document.getElementById('hist-detail-title').textContent = '⚖️ 体重の推移';
   document.getElementById('hist-detail-sets').innerHTML = '';
 
-  // 日付ごとに体重をまとめる
-  const chartData = recs
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .map(r => ({ date: r.date, weight: r.sets[0].weight }));
+  // 日付ごとに最新1件のみ使う
+  const byDate = {};
+  recs.forEach(r => {
+    if (!byDate[r.date] || r.timestamp > byDate[r.date].timestamp) {
+      byDate[r.date] = r;
+    }
+  });
+  const chartData = Object.keys(byDate).sort()
+    .map(d => ({ date: d, weight: byDate[d].sets[0].weight }));
 
   // 直近10件でグラフ描画
   const recent10 = chartData.slice(-10);
