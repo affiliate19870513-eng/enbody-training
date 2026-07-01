@@ -328,8 +328,6 @@ function showTab(tab) {
   event.target.classList.add('active');
   if (tab === 'history') initHistory();
   if (tab === 'manage') renderManage();
-  // 全タブでselectedClientNameを同期
-  syncClientSelection(tab);
 }
 
 function renderClients() {
@@ -763,9 +761,8 @@ function showDetail(exercise) {
 
   // 全履歴リスト（新しい順・日付・MAX重量・回数）
   document.getElementById('hist-all-list').style.display = 'block';
-  const exercise = document.getElementById('hist-detail-title').textContent;
   document.getElementById('hist-all-list-body').innerHTML = [...chartData].reverse().map(d => `
-    <div class="exercise-row" onclick="showSessionPopup('${d.date}', '${exercise}')" style="cursor:pointer;">
+    <div class="exercise-row hist-date-row" data-date="${d.date}" style="cursor:pointer;">
       <span style="color:var(--muted);font-size:13px;">${d.date}</span>
       <div style="text-align:right;">
         <strong>${d.weight}kg × ${d.reps}回</strong>
@@ -773,6 +770,16 @@ function showDetail(exercise) {
       </div>
     </div>
   `).join('');
+  // data属性でイベント登録（onclick文字列エスケープ問題を回避）
+  document.querySelectorAll('.hist-date-row').forEach(row => {
+    row.addEventListener('click', function() {
+      const date = this.getAttribute('data-date');
+      const exTitle = document.getElementById('hist-detail-title').textContent;
+      // 体重の場合は__体重__に変換
+      const exKey = exTitle === '⚖️ 体重' ? '__体重__' : exTitle;
+      showSessionPopup(date, exKey);
+    });
+  });
 
   // 前回セッション詳細は非表示
   document.getElementById('hist-detail-sets').innerHTML = '';
