@@ -292,7 +292,7 @@ let state = {
 function loadLocal() {
   state.clients = (JSON.parse(localStorage.getItem('eb_clients') || 'null') || DEFAULT_CLIENTS).sort((a, b) => a.localeCompare(b, 'ja'));
   state.exercises = JSON.parse(localStorage.getItem('eb_exercises') || 'null') || DEFAULT_EXERCISES;
-  state.sheetUrl = localStorage.getItem('eb_sheet_url') || '';
+  state.sheetUrl = localStorage.getItem('eb_sheet_url') || 'https://script.google.com/macros/s/AKfycbyJ1l0VzTcDAsuC8943sM54xyWLTkE-xbw3DJIkqHEYxNFzetS189X9zCYDIvOImKoU/exec';
   const saved = JSON.parse(localStorage.getItem('eb_records') || '[]');
   const demoLoaded = localStorage.getItem('eb_demo_loaded');
   if (!demoLoaded) {
