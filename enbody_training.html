@@ -243,6 +243,17 @@
 
 <div id="status-bar" class="status-bar"></div>
 
+<!-- セッション詳細ポップアップ -->
+<div id="session-popup" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:300;background:rgba(0,0,0,0.5);" onclick="closeSessionPopup()">
+  <div style="position:absolute;bottom:0;left:0;right:0;background:#fff;border-radius:20px 20px 0 0;padding:20px;max-height:80vh;overflow-y:auto;" onclick="event.stopPropagation()">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <strong id="popup-date" style="font-size:15px;"></strong>
+      <button onclick="closeSessionPopup()" style="background:none;border:none;font-size:22px;color:#888;cursor:pointer;">×</button>
+    </div>
+    <div id="popup-content"></div>
+  </div>
+</div>
+
 <script>
 const DEFAULT_CLIENTS = ['原田 雅人', '山田 太郎', '鈴木 花子', '田中 健一'];
 const DEFAULT_EXERCISES = [
@@ -272,6 +283,7 @@ let state = {
   exercises: [],
   clientInfo: {},
   selectedClient: null,
+  selectedClientName: null,
   records: [],
   sheetUrl: '',
   chartInstance: null
@@ -316,6 +328,8 @@ function showTab(tab) {
   event.target.classList.add('active');
   if (tab === 'history') initHistory();
   if (tab === 'manage') renderManage();
+  // 全タブでselectedClientNameを同期
+  syncClientSelection(tab);
 }
 
 function renderClients() {
@@ -330,6 +344,7 @@ function renderClients() {
 
 function selectClient(i) {
   state.selectedClient = i;
+  state.selectedClientName = state.clients[i];
   document.querySelectorAll('.client-btn').forEach(b => b.classList.remove('selected'));
   document.getElementById('client-' + i).classList.add('selected');
   document.getElementById('weight-form').style.display = 'block';
@@ -543,17 +558,50 @@ function renderTodaySummary() {
   `).join('');
 }
 
+function syncClientSelection(tab) {
+  if (!state.selectedClientName) return;
+  if (tab === 'history') {
+    const hc = document.getElementById('hist-client');
+    if (hc) {
+      hc.value = state.selectedClientName;
+      // セレクトボックスに値がなければ何もしない
+      if (hc.value !== state.selectedClientName) return;
+    }
+  }
+  if (tab === 'record') {
+    const idx = state.clients.indexOf(state.selectedClientName);
+    if (idx >= 0) selectClient(idx);
+  }
+}
+
 function initHistory() {
   const hc = document.getElementById('hist-client');
   hc.innerHTML = '<option value="">-- お客様を選んでください --</option>' + 
     state.clients.map(c => `<option>${c}</option>`).join('');
-  document.getElementById('hist-summary').style.display = 'none';
-  document.getElementById('hist-detail').style.display = 'none';
-  document.getElementById('hist-empty').style.display = 'none';
+  // selectedClientNameがあれば自動選択
+  if (state.selectedClientName) {
+    hc.value = state.selectedClientName;
+    loadHistory();
+  } else {
+    document.getElementById('hist-summary').style.display = 'none';
+    document.getElementById('hist-detail').style.display = 'none';
+    document.getElementById('hist-empty').style.display = 'none';
+  }
 }
 
 function loadHistory() {
   const client = document.getElementById('hist-client').value;
+  if (client) {
+    state.selectedClientName = client;
+    // 記録タブの選択も同期
+    const idx = state.clients.indexOf(client);
+    if (idx >= 0) {
+      state.selectedClient = idx;
+      document.querySelectorAll('.client-btn').forEach(b => b.classList.remove('selected'));
+      const btn = document.getElementById('client-' + idx);
+      if (btn) btn.classList.add('selected');
+    }
+  }
   if (!client) {
     document.getElementById('hist-summary').style.display = 'none';
     document.getElementById('hist-detail').style.display = 'none';
@@ -715,10 +763,14 @@ function showDetail(exercise) {
 
   // 全履歴リスト（新しい順・日付・MAX重量・回数）
   document.getElementById('hist-all-list').style.display = 'block';
+  const exercise = document.getElementById('hist-detail-title').textContent;
   document.getElementById('hist-all-list-body').innerHTML = [...chartData].reverse().map(d => `
-    <div class="exercise-row">
+    <div class="exercise-row" onclick="showSessionPopup('${d.date}', '${exercise}')" style="cursor:pointer;">
       <span style="color:var(--muted);font-size:13px;">${d.date}</span>
-      <strong>${d.weight}kg × ${d.reps}回</strong>
+      <div style="text-align:right;">
+        <strong>${d.weight}kg × ${d.reps}回</strong>
+        <div style="font-size:11px;color:var(--accent);">タップで詳細</div>
+      </div>
     </div>
   `).join('');
 
@@ -790,6 +842,29 @@ function showWeightDetail() {
       <strong>${d.weight}kg</strong>
     </div>
   `).join('');
+}
+
+function showSessionPopup(date, exercise) {
+  const client = document.getElementById('hist-client').value;
+  const recs = state.records.filter(r => r.client === client && r.exercise === exercise && r.date === date);
+  if (recs.length === 0) return;
+
+  // その日の全セットをまとめる
+  const allSets = [];
+  recs.forEach(r => r.sets.forEach(s => allSets.push(s)));
+
+  document.getElementById('popup-date').textContent = date + ' / ' + exercise;
+  document.getElementById('popup-content').innerHTML = allSets.map((s, i) => `
+    <div class="prev-set-row">
+      <span>セット${i + 1}</span>
+      <strong>${s.weight}kg × ${s.reps}回</strong>
+    </div>
+  `).join('');
+  document.getElementById('session-popup').style.display = 'block';
+}
+
+function closeSessionPopup() {
+  document.getElementById('session-popup').style.display = 'none';
 }
 
 function closeDetail() {
