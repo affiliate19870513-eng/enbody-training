@@ -153,7 +153,9 @@
     <select id="exercise-select"></select>
     <div id="sets-container"></div>
     <button class="add-set-btn" onclick="addSet()">＋ セットを追加</button>
-    <button class="btn-primary" onclick="saveRecord()">💾 保存する</button>
+    <label style="margin-top:12px;">メモ（任意）</label>
+    <input type="text" id="record-memo" placeholder="例：1回は補助あり、フォーム意識など" style="font-size:14px;" />
+    <button class="btn-primary" id="save-btn" onclick="saveRecord()">💾 保存する</button>
   </div>
 
   <div id="today-summary" style="display:none;">
@@ -424,8 +426,14 @@ function renderPrevWeight() {
 }
 
 async function saveRecord() {
-  if (state.selectedClient === null) { showStatus('お客様を選択してください', true); return; }
+  // 二重保存防止：ボタンを即座に無効化
+  const btn = document.getElementById('save-btn');
+  if (btn.disabled) return;
+  btn.disabled = true;
+
+  if (state.selectedClient === null) { showStatus('お客様を選択してください', true); btn.disabled = false; return; }
   const exercise = document.getElementById('exercise-select').value;
+  const memo = document.getElementById('record-memo').value.trim();
   const rows = document.querySelectorAll('#sets-container .set-row');
   const sets = [];
   rows.forEach((row, i) => {
@@ -433,24 +441,42 @@ async function saveRecord() {
     const r = row.querySelector('.reps-input').value;
     if (w && r) sets.push({ set: i + 1, weight: parseFloat(w), reps: parseInt(r) });
   });
-  if (sets.length === 0) { showStatus('重量と回数を入力してください', true); return; }
+  if (sets.length === 0) { showStatus('重量と回数を入力してください', true); btn.disabled = false; return; }
 
-  const record = {
-    date: new Date().toISOString().slice(0, 10),
-    client: state.clients[state.selectedClient],
-    exercise,
-    sets,
-    timestamp: new Date().toISOString()
-  };
+  const today = new Date().toISOString().slice(0, 10);
+  const clientName = state.clients[state.selectedClient];
 
-  // 同日・同種目の記録は上書き
-  state.records = state.records.filter(r => !(r.client === record.client && r.date === record.date && r.exercise === record.exercise));
-  state.records.push(record);
+  // 同日同種目の既存記録を探す（積み上げ方式）
+  const existing = state.records.find(r => r.client === clientName && r.date === today && r.exercise === exercise);
+  if (existing) {
+    // 既存のセットに追加（セット番号を続きから）
+    const nextSetNum = existing.sets.length + 1;
+    sets.forEach((s, i) => existing.sets.push({ set: nextSetNum + i, weight: s.weight, reps: s.reps }));
+    // メモは上書き（最新を優先）
+    if (memo) existing.memo = memo;
+  } else {
+    const record = {
+      date: today,
+      client: clientName,
+      exercise,
+      sets,
+      memo,
+      timestamp: new Date().toISOString()
+    };
+    state.records.push(record);
+  }
+
+  // ローカル保存を先に（タイムラグ削減）
   saveLocal();
-  await syncToSheet(record);
   showStatus('✅ 保存しました！');
   initSets();
+  document.getElementById('record-memo').value = '';
   renderTodaySummary();
+  btn.disabled = false;
+
+  // スプレッドシートへの送信はバックグラウンドで
+  const sendRecord = existing || state.records[state.records.length - 1];
+  syncToSheet(sendRecord).catch(() => {});
 }
 
 async function syncToSheet(record) {
@@ -860,13 +886,17 @@ function showSessionPopup(date, exercise) {
   const allSets = [];
   recs.forEach(r => r.sets.forEach(s => allSets.push(s)));
 
+  // メモを取得
+  const memo = recs[0].memo || '';
   document.getElementById('popup-date').textContent = date + ' / ' + exercise;
-  document.getElementById('popup-content').innerHTML = allSets.map((s, i) => `
-    <div class="prev-set-row">
-      <span>セット${i + 1}</span>
-      <strong>${s.weight}kg × ${s.reps}回</strong>
-    </div>
-  `).join('');
+  document.getElementById('popup-content').innerHTML = 
+    allSets.map((s, i) => `
+      <div class="prev-set-row">
+        <span>セット${s.set || i + 1}</span>
+        <strong>${s.weight}kg × ${s.reps}回</strong>
+      </div>
+    `).join('') +
+    (memo ? `<div style="margin-top:12px;padding:10px;background:#f9f9f9;border-radius:8px;font-size:13px;color:#555;">📝 ${memo}</div>` : '');
   document.getElementById('session-popup').style.display = 'block';
 }
 
