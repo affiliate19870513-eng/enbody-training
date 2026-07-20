@@ -685,8 +685,10 @@ function loadHistory() {
   
   if (recs.length === 0 && weightRecsCheck.length === 0) {
     document.getElementById('hist-empty').style.display = 'block';
+    document.getElementById('report-btn').style.display = 'none';
     return;
   }
+  document.getElementById('report-btn').style.display = 'block';
 
   // 種目ごとに最新の記録を取得
   const byExercise = {};
@@ -765,7 +767,6 @@ function loadHistory() {
   }).join('');
 
   document.getElementById('hist-summary').style.display = 'block';
-  document.getElementById('report-btn').style.display = 'block';
 }
 
 function showDetail(exercise) {
