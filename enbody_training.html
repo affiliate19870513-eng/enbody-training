@@ -174,6 +174,7 @@
   <div class="card">
     <label>お客様</label>
     <select id="hist-client" onchange="loadHistory()"></select>
+    <button class="btn-secondary" style="margin-top:10px;display:none;" id="report-btn" onclick="showReport()">📄 レポートを出力する</button>
   </div>
 
   <div id="hist-summary" style="display:none;">
@@ -242,6 +243,47 @@
   </div>
 
 </section>
+
+<!-- レポートモーダル -->
+<div id="report-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:400;background:rgba(0,0,0,0.6);overflow-y:auto;">
+  <div style="background:#fff;margin:20px 16px;border-radius:16px;overflow:hidden;">
+    <div style="background:#1a1a2e;color:white;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-size:11px;opacity:0.7;">enbody パーソナルジム</div>
+        <div style="font-size:16px;font-weight:600;" id="report-client-name"></div>
+      </div>
+      <button onclick="closeReport()" style="background:none;border:none;color:white;font-size:22px;cursor:pointer;">×</button>
+    </div>
+    <div style="padding:0 16px 16px;">
+      <div id="report-count-select" style="display:flex;gap:6px;padding:12px 0;flex-wrap:wrap;border-bottom:1px solid #eee;margin-bottom:12px;">
+        <span style="font-size:12px;color:#888;align-self:center;">直近:</span>
+        <button class="report-count-btn active" data-n="2" onclick="selectReportCount(2)">2回</button>
+        <button class="report-count-btn" data-n="3" onclick="selectReportCount(3)">3回</button>
+        <button class="report-count-btn" data-n="5" onclick="selectReportCount(5)">5回</button>
+        <button class="report-count-btn" data-n="10" onclick="selectReportCount(10)">10回</button>
+      </div>
+      <div id="report-content"></div>
+      <button onclick="printReport()" style="width:100%;margin-top:16px;padding:13px;background:#e94560;color:white;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;">PDF / 印刷用に出力する</button>
+    </div>
+  </div>
+</div>
+
+<!-- 印刷用スタイル -->
+<style>
+.report-count-btn { font-size:12px; padding:4px 12px; border:1px solid #ddd; border-radius:20px; background:white; color:#888; cursor:pointer; }
+.report-count-btn.active { background:#fff0f3; color:#e94560; border-color:#e94560; }
+.report-ex-name { font-size:14px; font-weight:600; color:#1a1a2e; margin:14px 0 6px; padding-bottom:4px; border-bottom:1px solid #eee; }
+.report-set-row { display:flex; justify-content:space-between; padding:4px 0 4px 10px; font-size:13px; color:#555; border-left:2px solid #eee; margin-bottom:2px; }
+.report-hist-row { display:flex; padding:4px 0 4px 10px; font-size:13px; color:#555; border-left:2px solid #e94560; margin-bottom:2px; gap:8px; }
+.report-hist-date { min-width:48px; color:#888; }
+.report-section-title { font-size:13px; font-weight:600; color:#e94560; margin:16px 0 8px; }
+@media print {
+  #report-modal { position:static !important; background:none !important; }
+  #report-modal > div { margin:0 !important; border-radius:0 !important; box-shadow:none !important; }
+  .report-count-btn, button { display:none !important; }
+  #report-count-select { display:none !important; }
+}
+</style>
 
 <div id="status-bar" class="status-bar"></div>
 
@@ -723,6 +765,7 @@ function loadHistory() {
   }).join('');
 
   document.getElementById('hist-summary').style.display = 'block';
+  document.getElementById('report-btn').style.display = 'block';
 }
 
 function showDetail(exercise) {
@@ -1009,6 +1052,93 @@ function showStatus(msg, isError) {
   bar.className = 'status-bar show' + (isError ? ' error' : '');
   clearTimeout(statusTimer);
   statusTimer = setTimeout(() => bar.classList.remove('show'), 2500);
+}
+
+let reportCount = 2;
+
+function showReport() {
+  const client = document.getElementById('hist-client').value;
+  if (!client) return;
+  document.getElementById('report-client-name').textContent = client + 'さん　トレーニング履歴';
+  document.getElementById('report-modal').style.display = 'block';
+  document.body.style.overflow = 'hidden';
+  renderReport(client, reportCount);
+}
+
+function closeReport() {
+  document.getElementById('report-modal').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+function selectReportCount(n) {
+  reportCount = n;
+  document.querySelectorAll('.report-count-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.n) === n);
+  });
+  const client = document.getElementById('hist-client').value;
+  renderReport(client, n);
+}
+
+function renderReport(client, n) {
+  const exercises = state.exercises;
+  const records = state.records.filter(r => r.client === client && r.exercise !== '__体重__');
+
+  // 前回セクション：全種目の最新セッション全セット
+  const lastSessionByEx = {};
+  records.forEach(r => {
+    if (!lastSessionByEx[r.exercise] || r.date > lastSessionByEx[r.exercise].date) {
+      lastSessionByEx[r.exercise] = r;
+    }
+  });
+
+  let lastDateStr = '';
+  const lastDates = Object.values(lastSessionByEx).map(r => r.date).sort();
+  if (lastDates.length > 0) {
+    const d = new Date(lastDates[lastDates.length - 1]);
+    lastDateStr = (d.getMonth()+1) + '月' + d.getDate() + '日';
+  }
+
+  let prevHTML = `<div class="report-section-title">◆ 前回（${lastDateStr}）</div>`;
+  exercises.forEach(ex => {
+    const rec = lastSessionByEx[ex];
+    if (!rec) return;
+    prevHTML += `<div class="report-ex-name">${ex}</div>`;
+    rec.sets.forEach((s, i) => {
+      prevHTML += `<div class="report-set-row"><span>セット${i+1}</span><span>${s.weight}kg × ${s.reps}回</span></div>`;
+    });
+    if (rec.memo) prevHTML += `<div style="font-size:12px;color:#888;padding:4px 0 4px 10px;">📝 ${rec.memo}</div>`;
+  });
+
+  // 直近Nセクション：種目別に日付ごとMAX重量
+  let histHTML = `<div class="report-section-title">◆ 直近${n}回</div>`;
+  exercises.forEach(ex => {
+    const exRecs = records.filter(r => r.exercise === ex);
+    if (exRecs.length === 0) return;
+
+    const byDate = {};
+    exRecs.forEach(r => {
+      if (!byDate[r.date]) byDate[r.date] = [];
+      r.sets.forEach(s => byDate[r.date].push(s));
+    });
+    const dates = Object.keys(byDate).sort().reverse().slice(0, n);
+    if (dates.length === 0) return;
+
+    histHTML += `<div class="report-ex-name">${ex}</div>`;
+    dates.forEach(d => {
+      const sets = byDate[d];
+      const maxSet = sets.reduce((a, b) => a.weight >= b.weight ? a : b);
+      const totalSets = sets.length;
+      const dateObj = new Date(d);
+      const dateStr = (dateObj.getMonth()+1) + '/' + dateObj.getDate();
+      histHTML += `<div class="report-hist-row"><span class="report-hist-date">${dateStr}</span><span>${maxSet.weight}kg × ${maxSet.reps}回 × ${totalSets}セット</span></div>`;
+    });
+  });
+
+  document.getElementById('report-content').innerHTML = prevHTML + histHTML;
+}
+
+function printReport() {
+  window.print();
 }
 
 function resetAndReload() {
